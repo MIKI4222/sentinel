@@ -1,0 +1,1 @@
+Independent supplementary check: preinstalled esbuild 0.25.0 bundled /data/qa-core.ts, Node executed resulting module. 51 synthetic assertions passed. This was not npm test or a Bradbury run. Reproducible source: scripts/offline-check.ts.

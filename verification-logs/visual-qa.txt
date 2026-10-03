@@ -1,0 +1,1 @@
+Offline preview only. Fetch blocked. Viewed dashboard desktop, monitor mobile, navigation drawer mobile, rejected-by-contract mobile, landing desktop, guarded-action desktop, activity desktop, config desktop. Not an exhaustive interactive/mobile audit.

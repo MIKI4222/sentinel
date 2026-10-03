@@ -1,153 +1,51 @@
-import { useCallback, useState } from "react";
-import { useWallet } from "../context/WalletContext";
-import { useTransaction } from "../context/TransactionContext";
-import { useContractState } from "../context/ContractStateContext";
-import {
-  healthCheck,
-  executeGuardedAction,
-  setMonitoredUrl,
-  emergencyUnpause,
-} from "../lib/contract/service";
-import { getUserErrorMessage } from "../config";
-
-type ActionType = "health_check" | "execute_guarded_action" | "set_monitored_url" | "emergency_unpause";
-
-interface UseContractActionOptions {
-  onSuccess?: (result: any) => void;
-  onError?: (error: string) => void;
-}
-
+import { useCallback, useRef, useState } from 'react';
+import { useWallet } from './useWallet';
+import { useTransactions } from './useTransactions';
+import { useContractState } from './useContractState';
+import { getProvider } from '../lib/genlayer/wallet';
+import { performAction, type ActionResult } from '../lib/contract/service';
+import type { ActionType } from '../lib/genlayer/client';
+import { errorMessage, isSignatureRejected } from '../config/errors';
+import { getUserErrorMessage } from '../config';
+export type ActionCompletion = { kind: 'result'; result: ActionResult } | { kind: 'canceled' | 'transport-error'; error: string };
 export function useContractAction() {
-  const { isConnected, address, connect, isCorrectNetwork, switchNetwork } = useWallet();
-  const { startTransaction, updateStage, completeTransaction, failTransaction } = useTransaction();
+  const { ensureWallet } = useWallet();
+  const { startTransaction, patchTransaction, watchFinalization } = useTransactions();
   const { refresh } = useContractState();
-  const [isExecuting, setIsExecuting] = useState(false);
-
-  const ensureWallet = useCallback(async (): Promise<`0x${string}` | null> => {
-    if (!isConnected) {
-      await connect();
-    }
-    if (!isConnected || !address) {
-      return null;
-    }
-    if (!isCorrectNetwork) {
-      const switched = await switchNetwork();
-      if (!switched) return null;
-    }
-    return address;
-  }, [isConnected, address, connect, isCorrectNetwork, switchNetwork]);
-
-  const executeAction = useCallback(
-    async (
-      actionType: ActionType,
-      args: unknown[],
-      options: UseContractActionOptions = {}
-    ): Promise<any> => {
-      const userAddress = await ensureWallet();
-      if (!userAddress) {
-        const error = "Wallet not connected or wrong network";
-        options.onError?.(error);
-        throw new Error(error);
-      }
-
-      setIsExecuting(true);
-      const txId = startTransaction(actionType);
-
-      try {
-        updateStage(txId, "awaiting_signature");
-        updateStage(txId, "submitted");
-
-        let result: any;
-
-        switch (actionType) {
-          case "health_check":
-            result = await healthCheck(window.ethereum, userAddress);
-            break;
-          case "execute_guarded_action":
-            result = await executeGuardedAction(window.ethereum, userAddress, args[0] as string);
-            break;
-          case "set_monitored_url":
-            result = await setMonitoredUrl(window.ethereum, userAddress, args[0] as string);
-            break;
-          case "emergency_unpause":
-            result = await emergencyUnpause(window.ethereum, userAddress);
-            break;
-          default:
-            throw new Error(`Unknown action type: ${actionType}`);
-        }
-
-        updateStage(txId, "accepted");
-
-        // Check for UserError in execution result
-        const isUserError = result.transactionResult.status === "FINISHED_WITH_ERROR";
-        const userErrorMessage = isUserError
-          ? getUserErrorMessage(result.transactionResult.executionResult?.error || "")
-          : null;
-
-        if (userErrorMessage) {
-          updateStage(txId, "finalized");
-          failTransaction(txId, userErrorMessage);
-          options.onError?.(userErrorMessage);
-          await refresh();
-          return { ...result, userError: userErrorMessage };
-        }
-
-        if (result.transactionResult.status === "UNDETERMINED" || 
-            result.transactionResult.status === "NOT_VOTED" || 
-            result.transactionResult.status === "LEADER_TIMEOUT") {
-          updateStage(txId, "finalized");
-          const error = "Validators did not reach consensus. Contract state unchanged. You can retry.";
-          failTransaction(txId, error);
-          options.onError?.(error);
-          await refresh();
-          return { ...result, consensusError: error };
-        }
-
-        // For successful transactions, wait for finalization in background
-        updateStage(txId, "finalized");
-        completeTransaction(txId, result.transactionResult.hash, result.stateAfter);
-        options.onSuccess?.(result);
-        await refresh();
-        return result;
-      } catch (error: any) {
-        const errorMessage = error.message || "Transaction failed";
-        failTransaction(txId, errorMessage);
-        options.onError?.(errorMessage);
-        throw error;
-      } finally {
-        setIsExecuting(false);
-      }
-    },
-    [ensureWallet, startTransaction, updateStage, completeTransaction, failTransaction, refresh]
-  );
-
-  const healthCheckAction = useCallback(
-    (options?: UseContractActionOptions) => executeAction("health_check", [], options),
-    [executeAction]
-  );
-
-  const executeGuardedActionAction = useCallback(
-    (actionData: string, options?: UseContractActionOptions) =>
-      executeAction("execute_guarded_action", [actionData], options),
-    [executeAction]
-  );
-
-  const setMonitoredUrlAction = useCallback(
-    (newUrl: string, options?: UseContractActionOptions) =>
-      executeAction("set_monitored_url", [newUrl], options),
-    [executeAction]
-  );
-
-  const emergencyUnpauseAction = useCallback(
-    (options?: UseContractActionOptions) => executeAction("emergency_unpause", [], options),
-    [executeAction]
-  );
-
-  return {
-    isExecuting,
-    healthCheck: healthCheckAction,
-    executeGuardedAction: executeGuardedActionAction,
-    setMonitoredUrl: setMonitoredUrlAction,
-    emergencyUnpause: emergencyUnpauseAction,
-  };
+  const [isExecuting, setExecuting] = useState(false);
+  const busy = useRef(false);
+  const execute = useCallback(async (action: ActionType, args: string[] = []): Promise<ActionCompletion> => {
+    if (busy.current) return { kind: 'transport-error', error: 'An operation is already being submitted from this page.' };
+    busy.current = true; setExecuting(true);
+    const id = startTransaction(action);
+    let submittedHash: string | undefined;
+    try {
+      // Returned session is authoritative; never read pre-connect React state.
+      const session = await ensureWallet();
+      const result = await performAction(action, args, getProvider(), session.address, {
+        onSignature: () => patchTransaction(id, { stage: 'awaiting_signature', message: 'Confirm the operation in your wallet.' }),
+        onSubmitted: hash => { submittedHash = hash; patchTransaction(id, { hash, submittedAt: Date.now(), stage: 'submitted', message: 'Hash received. Waiting for consensus.' }); },
+        onProgress: progress => patchTransaction(id, { statusName: progress.statusName, stage: ['ACCEPTED', 'FINALIZED'].includes(progress.statusName) ? 'accepted' : 'processing' }),
+      });
+      const o = result.outcome;
+      const status = o.kind === 'accepted-return' ? 'accepted' : o.kind === 'accepted-error' ? 'rejected_by_contract' : o.kind === 'no-consensus' ? 'no_consensus' : 'unknown';
+      const message = o.kind === 'accepted-return' ? result.evidence : o.kind === 'accepted-error' ? getUserErrorMessage(o.error) : o.kind === 'no-consensus'
+        ? 'Validators did not reach consensus. This transaction did not change the contract state or enable the pause. Other transactions may still change state. You can retry.' : o.reason;
+      patchTransaction(id, { hash: result.hash, result, status, message, statusName: o.statusName, finalized: o.statusName === 'FINALIZED',
+        stage: o.statusName === 'FINALIZED' ? 'finalized' : ['accepted-return', 'accepted-error'].includes(o.kind) ? 'accepted' : 'processing', endTime: Date.now() });
+      if (['accepted-return', 'accepted-error'].includes(o.kind) && o.statusName !== 'FINALIZED') watchFinalization(id, result.hash);
+      await refresh();
+      return { kind: 'result', result };
+    } catch (error) {
+      const canceled = !submittedHash && isSignatureRejected(error);
+      const message = errorMessage(error);
+      patchTransaction(id, { status: canceled ? 'canceled' : 'unknown', hash: submittedHash, message, endTime: Date.now() });
+      return { kind: canceled ? 'canceled' : 'transport-error', error: message };
+    } finally { busy.current = false; setExecuting(false); }
+  }, [ensureWallet, startTransaction, patchTransaction, refresh, watchFinalization]);
+  return { isExecuting, execute,
+    healthCheck: () => execute('health_check'),
+    setMonitoredUrl: (url: string) => execute('set_monitored_url', [url]),
+    executeGuardedAction: (data: string) => execute('execute_guarded_action', [data]),
+    emergencyUnpause: () => execute('emergency_unpause') };
 }

@@ -1,0 +1,11 @@
+import { simplifyTransactionReceipt } from 'genlayer-js';
+import { readClient } from './runtime';
+import { parseReceipt, serializeReceipt, transactionHash } from '../src/lib/genlayer/receipt';
+const hash = transactionHash(process.argv[2]);
+const receipt = await readClient.getTransaction({ hash });
+console.log('RAW SDK RECEIPT');
+console.log(serializeReceipt(receipt));
+console.log('SIMPLIFIED SDK RECEIPT');
+console.log(serializeReceipt(simplifyTransactionReceipt(receipt)));
+console.log('PARSED OUTCOME');
+console.log(serializeReceipt(parseReceipt(receipt)));

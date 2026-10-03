@@ -1,0 +1,128 @@
+# Changed and new files
+
+All listed files are included in full, not as patches. Extract into a fresh folder so deleted legacy files are not retained.
+
+- `.env.example` — Safe browser/keeper environment template; secret remains empty.
+- `.github/workflows/ci.yml` — Sequential typecheck → lint → test → build on Node 24.
+- `.github/workflows/keeper.yml` — Manual-only keeper with Actions secret and concurrency guard.
+- `.gitignore` — Exclude all real environment files and dependencies.
+- `.oxlintrc.json` — Enable no-explicit-any and React export checks.
+- `ARCHITECTURE.md` — Accurate English documentation, limitations and unverified live evidence.
+- `FILE_MANIFEST.md` — Updated complete file.
+- `IMPLEMENTATION_REPORT.md` — Updated complete file.
+- `INTEGRATION.md` — Accurate English documentation, limitations and unverified live evidence.
+- `README.md` — Accurate English documentation, limitations and unverified live evidence.
+- `START_HERE.md` — Updated complete file.
+- `SUBMISSION.md` — Accurate English documentation, limitations and unverified live evidence.
+- `TEST_PLAN.md` — Accurate English documentation, limitations and unverified live evidence.
+- `index.html` — Preserve link-loaded fonts and remove nonexistent favicon.
+- `package-lock.json` — Synchronize pinned SDK in lockfile without dependency upgrades.
+- `package.json` — Pin SDK 1.1.8, genuine typecheck, warning-denying lint and operational scripts.
+- `scripts/inspect-receipt.ts` — Read actual raw/simplified SDK receipt by supplied hash.
+- `scripts/keeper.ts` — Env-only local signer, sequential checks and pending-hash tracking.
+- `scripts/offline-check.ts` — Reproducible independent synthetic assertions; not Vitest evidence.
+- `scripts/runtime.ts` — Validated shared Node read client without private key.
+- `scripts/smoke-read.ts` — Read-only seven-view smoke check.
+- `scripts/verify-contract.ts` — Compare deployed code against repository without unsafe whitespace collapse.
+- `src/App.tsx` — Lazy routes and one common transaction modal.
+- `src/components/ContractEvidence.tsx` — Actual stored evidence, read-error retry and stale/URL warnings.
+- `src/components/Limitations.tsx` — Shared transparent deployed-contract limitations.
+- `src/components/layout/Sidebar.tsx` — Wallet controls and accessible mobile navigation.
+- `src/components/ui/Modal.tsx` — Dialog semantics, Escape, focus trap/return and inert background.
+- `src/components/ui/TransactionModal.tsx` — Separate accepted, rejected, no-consensus, unknown and finality displays.
+- `src/config/env.test.ts` — Synthetic regression tests for env.
+- `src/config/env.ts` — Validated config or centralized UserError messages.
+- `src/config/errors.ts` — Validated config or centralized UserError messages.
+- `src/config/index.ts` — Validated config or centralized UserError messages.
+- `src/context/ContractStateContext.tsx` — Explicit read errors, refresh protection and timed freshness state.
+- `src/context/TransactionContext.test.tsx` — Synthetic regression tests for TransactionContext.
+- `src/context/TransactionContext.tsx` — Immutable history, real hash recovery and background finality jobs.
+- `src/context/WalletContext.tsx` — Stable subscriptions, silent restoration and returned wallet session.
+- `src/context/contract-state.ts` — Separated typed context definitions.
+- `src/context/transactions.test.ts` — Synthetic regression tests for transactions.
+- `src/context/transactions.ts` — History types, reducer, bounded validated persistence loader.
+- `src/context/wallet.ts` — Separated typed context definitions.
+- `src/hooks/useClock.ts` — State-held clock; no Date.now during render.
+- `src/hooks/useContractAction.test.tsx` — Synthetic regression tests for useContractAction.
+- `src/hooks/useContractAction.ts` — Sole action transaction owner; typed outcomes, no TDZ callbacks.
+- `src/hooks/useContractState.ts` — Dedicated context hook, separated from component exports.
+- `src/hooks/useTransactions.ts` — Dedicated context hook, separated from component exports.
+- `src/hooks/useWallet.ts` — Dedicated context hook, separated from component exports.
+- `src/index.css` — Accessible control sizing/focus/reduced motion; retained dark Sentinel theme.
+- `src/layouts/AppLayout.tsx` — Shared layout with space for mobile menu.
+- `src/lib/contract/service.ts` — Before/after evidence with explicit uncertainty and no invented return text.
+- `src/lib/genlayer/client.ts` — Direct typed SDK calls, separate clients and signer/network revalidation.
+- `src/lib/genlayer/poll.test.ts` — Synthetic regression tests for poll.
+- `src/lib/genlayer/poll.ts` — Six-minute acceptance polling and abortable actual-finality polling.
+- `src/lib/genlayer/receipt.test.ts` — Synthetic regression tests for receipt.
+- `src/lib/genlayer/receipt.ts` — Pure outcome parser, SDK numeric maps and six known UserErrors.
+- `src/lib/genlayer/source-guard.test.ts` — Synthetic regression tests for source-guard.
+- `src/lib/genlayer/state.test.ts` — Synthetic regression tests for state.
+- `src/lib/genlayer/state.ts` — Seven-view read union and safe number/bigint normalization.
+- `src/lib/genlayer/wallet.test.ts` — Synthetic regression tests for wallet.
+- `src/lib/genlayer/wallet.ts` — EIP-1193 session reads/network switching and precise BigInt balance.
+- `src/pages/AboutPage.tsx` — Focused factual page without unsupported contract claims.
+- `src/pages/ActivityPage.tsx` — Bounded local history with modal/recheck/explorer access.
+- `src/pages/ArchitecturePage.tsx` — Focused factual page without unsupported contract claims.
+- `src/pages/DashboardPage.tsx` — Observable evidence and action hook without duplicate tracking.
+- `src/pages/DocsPage.tsx` — Focused factual page without unsupported contract claims.
+- `src/pages/HowItWorksPage.tsx` — Focused factual page without unsupported contract claims.
+- `src/pages/LandingPage.tsx` — Wallet-free status and corrected contract claims.
+- `src/pages/MonitorPage.tsx` — HTTPS form, submission-based cooldown and optional public fixtures.
+- `src/pages/ProtectedActionPage.tsx` — Honest demo operation with expected paused rejection.
+- `src/pages/RecoveryPage.tsx` — State-based checklist and explicitly unverified owner hint.
+- `src/pages/SettingsPage.tsx` — Read-only build config and implemented local-history clearing.
+- `src/types/global.d.ts` — Typed optional EIP-1193 window provider.
+- `tsconfig.app.json` — Strict application and test-file checking.
+- `tsconfig.node.json` — Strict scripts/config checking, including Node helper scripts.
+- `vercel.json` — Filesystem-first SPA fallback excluding missing assets/mock paths.
+- `verification-logs/final-build.log` — Updated complete file.
+- `verification-logs/final-lint.log` — Updated complete file.
+- `verification-logs/final-test.log` — Updated complete file.
+- `verification-logs/final-typecheck.log` — Updated complete file.
+- `verification-logs/offline-command.txt` — Updated complete file.
+- `verification-logs/offline-core.log` — Updated complete file.
+- `verification-logs/stage1-build.log` — Updated complete file.
+- `verification-logs/stage1-lint.log` — Updated complete file.
+- `verification-logs/stage1-test.log` — Updated complete file.
+- `verification-logs/stage2-build.log` — Updated complete file.
+- `verification-logs/stage2-lint.log` — Updated complete file.
+- `verification-logs/stage2-test.log` — Updated complete file.
+- `verification-logs/stage3-build.log` — Updated complete file.
+- `verification-logs/stage3-lint.log` — Updated complete file.
+- `verification-logs/stage3-test.log` — Updated complete file.
+- `verification-logs/stage4-build.log` — Updated complete file.
+- `verification-logs/stage4-lint.log` — Updated complete file.
+- `verification-logs/stage4-test.log` — Updated complete file.
+- `verification-logs/stage5-build.log` — Updated complete file.
+- `verification-logs/stage5-lint.log` — Updated complete file.
+- `verification-logs/stage5-test.log` — Updated complete file.
+- `verification-logs/stage6-build.log` — Updated complete file.
+- `verification-logs/stage6-lint.log` — Updated complete file.
+- `verification-logs/stage6-test.log` — Updated complete file.
+- `verification-logs/stage7-build.log` — Updated complete file.
+- `verification-logs/stage7-lint.log` — Updated complete file.
+- `verification-logs/stage7-test.log` — Updated complete file.
+- `verification-logs/stage8-build.log` — Updated complete file.
+- `verification-logs/stage8-lint.log` — Updated complete file.
+- `verification-logs/stage8-test.log` — Updated complete file.
+- `verification-logs/typecheck-probe.log` — Updated complete file.
+- `verification-logs/visual-qa.txt` — Updated complete file.
+- `vite.config.ts` — Vite 8/Rolldown SDK chunk group; owner-measured entry and SDK sizes in IMPLEMENTATION_REPORT.md.
+- `vitest.config.ts` — Avoid incompatible Vite 8 plugin cast inside Vitest 2/Vite 5.
+- `vitest.setup.ts` — Clean per-test DOM, timers and storage.
+
+## Removed files
+
+- `src/components/ui/Input.tsx` — Removed duplicate/unused implementation.
+- `src/hooks/useGenLayer.ts` — Removed duplicate/unused implementation.
+- `src/hooks/useTransaction.ts` — Removed duplicate/unused implementation.
+- `src/layouts/LandingLayout.tsx` — Removed duplicate/unused implementation.
+
+## Consolidated release corrections
+
+- `src/context/ContractStateContext.tsx` — Stable request-invalidation callback in effect cleanup; lint remains enabled.
+- `src/context/WalletContext.tsx` — Stable balance-invalidation callback and listener cleanup; stale-response guard preserved.
+- `vitest.setup.ts` — Isolated test-only synchronous Storage for Node/jsdom compatibility.
+- `IMPLEMENTATION_REPORT.md`, `TEST_PLAN.md`, `README.md`, `SUBMISSION.md` — Recorded owner-provided local and Bradbury evidence without inventing finality or negative-path passes.
+- `DEPLOYMENT.md`, `START_HERE.md` — Safe frontend-only GitHub/Vercel publication instructions.

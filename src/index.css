@@ -373,3 +373,13 @@
     50% { opacity: 0.5; }
   }
 }
+
+@layer base {
+  button, .btn-primary, .btn-secondary { min-height: 44px; }
+  :focus-visible { outline: 2px solid var(--color-sentinel-accent); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+}
+
+@layer components {
+  .btn-primary, .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-weight: 500; text-align: center; }
+}

@@ -16,18 +16,22 @@ import {
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
-import { useGenLayer } from "../hooks/useGenLayer";
-import { VERDICT_LABELS, STATUS_LABELS } from "../config";
+import { useContractState } from "../hooks/useContractState";
+const STATUS_LABELS = { ACTIVE: { label: 'ACTIVE', variant: 'active' }, PAUSED: { label: 'PAUSED', variant: 'paused' } } as const;
+const VERDICT_LABELS = { not_checked: { label: 'Not checked', variant: 'neutral' }, operational: { label: 'Operational', variant: 'active' }, degraded: { label: 'Degraded', variant: 'warning' } } as const;
 import { formatRelativeTime } from "../lib/genlayer/client";
+import { getExplorerAddressUrl } from "../config";
+import { Limitations } from "../components/Limitations";
 
 export function LandingPage() {
-  const { contractState } = useGenLayer();
+  const { state: contractState, now, error } = useContractState();
 
   const statusConfig = contractState ? STATUS_LABELS[contractState.status] : null;
   const verdictConfig = contractState ? VERDICT_LABELS[contractState.lastVerdict] : null;
 
   return (
     <div className="max-w-7xl mx-auto space-y-16">
+      {error && <p role="alert" className="card">Could not read live contract: {error}</p>}
       <section className="pt-8 lg:pt-16">
         <div className="text-center max-w-4xl mx-auto animate-in">
           <Badge variant="info" className="mb-6 inline-flex items-center gap-2">
@@ -78,7 +82,7 @@ export function LandingPage() {
               <h3 className="text-lg font-semibold text-sentinel-text">Fail Closed</h3>
             </div>
             <p className="text-sentinel-textMuted">
-              Unknown, malformed, or unavailable responses are treated as incidents instead of silently allowing protected operations to continue.
+              Unknown, malformed or unavailable source bodies classify as degraded. A pause applies only after an accepted degraded check; no consensus does not enable it.
             </p>
           </Card>
 
@@ -90,7 +94,7 @@ export function LandingPage() {
               <h3 className="text-lg font-semibold text-sentinel-text">Recover with Proof</h3>
             </div>
             <p className="text-sentinel-textMuted">
-              Recovery requires a fresh operational verdict and owner authorization. A healthy service does not automatically clear the pause.
+              Recovery requires an operational verdict for the current URL and owner authorization. Verdict age is not checked by the contract.
             </p>
           </Card>
         </div>
@@ -105,7 +109,7 @@ export function LandingPage() {
           <div className="flex items-center gap-2">
             <span className={`status-indicator ${contractState?.status === "ACTIVE" ? "status-active" : contractState?.status === "PAUSED" ? "status-paused" : "status-pending"}`} />
             <span className="text-sm font-medium text-sentinel-textMuted">
-              {contractState ? STATUS_LABELS[contractState.status]?.label : "Loading..."}
+              {contractState ? STATUS_LABELS[contractState.status]?.label : error ? "Unavailable" : "Loading..."}
             </span>
           </div>
         </div>
@@ -158,7 +162,7 @@ export function LandingPage() {
                 <p className="text-sm text-sentinel-textMuted mb-1">Last Check</p>
                 <p className="text-lg font-mono text-sentinel-text">
                   {contractState && contractState.lastCheckTimestamp > 0
-                    ? formatRelativeTime(contractState.lastCheckTimestamp)
+                    ? formatRelativeTime(contractState.lastCheckTimestamp, now)
                     : "Never"}
                 </p>
               </div>
@@ -173,7 +177,7 @@ export function LandingPage() {
               <div>
                 <p className="text-sm text-sentinel-textMuted mb-1">Incidents</p>
                 <p className="text-2xl font-bold text-sentinel-text mono">
-                  {contractState?.incidentCount ?? 0}
+                  {contractState?.incidentCount ?? "Unavailable"}
                 </p>
               </div>
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sentinel-danger/15">
@@ -230,7 +234,7 @@ export function LandingPage() {
             },
             {
               title: "On-Chain Result",
-              description: "Consensus decision becomes immutable contract state. Protected operations read directly from the blockchain.",
+              description: "Accepted checks update contract state. The guarded demo checks the pause inside contract execution.",
               icon: Shield,
             },
             {
@@ -240,7 +244,7 @@ export function LandingPage() {
             },
             {
               title: "Verified Recovery",
-              description: "Recovery requires fresh consensus on the current endpoint. Prevents stale verdicts from clearing incidents.",
+              description: "Recovery requires a matching operational verdict and owner authorization. It does not prevent stale verdict use.",
               icon: RotateCcw,
             },
           ].map((item) => (
@@ -293,7 +297,7 @@ export function LandingPage() {
               </Button>
             </Link>
             <a
-              href="https://explorer-bradbury.genlayer.com/address/0xD934fA3E6EB893f56dd1d53DBeD9fd6f66678000"
+              href={getExplorerAddressUrl()}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -305,6 +309,7 @@ export function LandingPage() {
           </div>
         </Card>
       </section>
+      <Limitations />
     </div>
   );
 }

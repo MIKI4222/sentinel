@@ -1,198 +1,47 @@
-import { createClient } from "genlayer-js";
-import { CONTRACT_ADDRESS, RPC_URL, CHAIN, validateConfig } from "../../config";
-
-validateConfig();
-
-let readClientInstance: any = null;
-let writeClientInstance: any = null;
-
-export function getReadClient(): any {
-  if (!readClientInstance) {
-    readClientInstance = createClient({
-      chain: CHAIN,
-      endpoint: RPC_URL,
-    });
-  }
-  return readClientInstance;
+import { createClient } from 'genlayer-js';
+import type { EIP1193Provider } from 'viem';
+import { CONTRACT_ADDRESS, RPC_URL, CHAIN, CHAIN_ID } from '../../config';
+import type { Address } from '../../config/env';
+import { readState } from './state';
+import { transactionHash } from './receipt';
+import { pollUntilAccepted, pollUntilFinalized as pollFinal, type Progress } from './poll';
+export type { ContractState, StateResult } from './state';
+export type { ReceiptOutcome } from './receipt';
+export type GenLayerClient = ReturnType<typeof createClient>;
+// SDK 1.1.8 refers to an undeclared global EthereumProvider; use its installed viem EIP-1193 type.
+export type EthereumProvider = EIP1193Provider;
+export const readClient = createClient({ chain: CHAIN, endpoint: RPC_URL });
+export function getReadClient(): GenLayerClient { return readClient; }
+let cached: { provider: EthereumProvider; account: Address; client: GenLayerClient } | undefined;
+export function getWriteClient(provider: EthereumProvider, account: Address): GenLayerClient {
+  if (cached && cached.provider === provider && cached.account === account) return cached.client;
+  const client = createClient({ chain: CHAIN, endpoint: RPC_URL, provider, account });
+  cached = { provider, account, client };
+  return client;
 }
-
-export function getWriteClient(provider?: any, account?: `0x${string}`): any {
-  if (!writeClientInstance || provider) {
-    writeClientInstance = createClient({
-      chain: CHAIN,
-      endpoint: RPC_URL,
-      provider,
-      account,
-    });
-  }
-  return writeClientInstance;
+export function resetWriteClient(): void { cached = undefined; }
+export function fetchContractState() { return readState(functionName => readClient.readContract({ address: CONTRACT_ADDRESS, functionName, args: [] })); }
+export type ActionType = 'health_check' | 'execute_guarded_action' | 'set_monitored_url' | 'emergency_unpause';
+export async function submitContract(provider: EthereumProvider, account: Address, functionName: ActionType, args: string[]): Promise<string> {
+  const currentChain: unknown = await provider.request({ method: 'eth_chainId' });
+  const accounts: unknown = await provider.request({ method: 'eth_accounts' });
+  if (typeof currentChain !== 'string' || Number(BigInt(currentChain)) !== CHAIN_ID) { resetWriteClient(); throw new Error('Network changed before submission. Switch to Bradbury and retry.'); }
+  if (!Array.isArray(accounts) || typeof accounts[0] !== 'string' || accounts[0].toLowerCase() !== account.toLowerCase()) { resetWriteClient(); throw new Error('Wallet account changed before submission. Review the active account and retry.'); }
+  // SDK 1.1.8 declares Promise<any>; contain it as unknown and validate at runtime.
+  const hash: unknown = await getWriteClient(provider, account).writeContract({ address: CONTRACT_ADDRESS, functionName, args, value: 0n });
+  return transactionHash(hash);
 }
-
-export function resetWriteClient(): void {
-  writeClientInstance = null;
+export function waitForAccepted(hash: string, onProgress?: Progress, signal?: AbortSignal) { return pollUntilAccepted(readClient, hash, onProgress, signal); }
+export function pollUntilFinalized(hash: string, onProgress: Progress, signal: AbortSignal) { return pollFinal(readClient, hash, onProgress, signal); }
+export function formatAddress(value: string, chars = 4): string { return value ? `${value.slice(0, chars + 2)}...${value.slice(-chars)}` : ''; }
+export function formatTxHash(value: string, chars = 6): string { return formatAddress(value, chars); }
+export function formatTimestamp(timestamp: number | bigint): string { return new Date(Number(timestamp) * 1000).toLocaleString(); }
+export function formatRelativeTime(timestamp: number | bigint, now = Date.now()): string {
+  const seconds = Math.max(0, Math.floor(now / 1000 - Number(timestamp)));
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return new Date(Number(timestamp) * 1000).toLocaleDateString();
 }
-
-export interface ContractState {
-  status: "ACTIVE" | "PAUSED";
-  monitoredUrl: string;
-  lastVerdict: "not_checked" | "operational" | "degraded";
-  lastCheckedUrl: string;
-  incidentCount: number;
-  lastCheckTimestamp: number;
-  guardedActionCount: number;
-}
-
-export interface TransactionResult {
-  hash: string;
-  status: "ACCEPTED" | "FINALIZED" | "FINISHED_WITH_ERROR" | "FINISHED_WITH_RETURN" | "UNDETERMINED" | "NOT_VOTED" | "LEADER_TIMEOUT";
-  executionResult?: {
-    returnValue?: unknown;
-    error?: string;
-  };
-  receipt?: any;
-}
-
-export async function fetchContractState(): Promise<ContractState | null> {
-  try {
-    const client = getReadClient();
-    const contract = client.contract({
-      address: CONTRACT_ADDRESS,
-      abi: [
-        { name: "get_status", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
-        { name: "get_monitored_url", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
-        { name: "get_last_verdict", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
-        { name: "get_last_checked_url", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
-        { name: "get_incident_count", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint32" }] },
-        { name: "get_last_check_timestamp", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
-        { name: "get_guarded_action_count", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint32" }] },
-      ],
-    });
-
-    const [status, monitoredUrl, lastVerdict, lastCheckedUrl, incidentCount, lastCheckTimestamp, guardedActionCount] =
-      await Promise.all([
-        contract.read.get_status(),
-        contract.read.get_monitored_url(),
-        contract.read.get_last_verdict(),
-        contract.read.get_last_checked_url(),
-        contract.read.get_incident_count(),
-        contract.read.get_last_check_timestamp(),
-        contract.read.get_guarded_action_count(),
-      ]);
-
-    return {
-      status: status as "ACTIVE" | "PAUSED",
-      monitoredUrl: monitoredUrl as string,
-      lastVerdict: lastVerdict as "not_checked" | "operational" | "degraded",
-      lastCheckedUrl: lastCheckedUrl as string,
-      incidentCount: Number(incidentCount),
-      lastCheckTimestamp: Number(lastCheckTimestamp),
-      guardedActionCount: Number(guardedActionCount),
-    };
-  } catch (error) {
-    console.error("Failed to fetch contract state:", error);
-    return null;
-  }
-}
-
-export async function writeContract(
-  provider: any,
-  account: `0x${string}`,
-  functionName: "set_monitored_url" | "health_check" | "execute_guarded_action" | "emergency_unpause",
-  args: unknown[]
-): Promise<TransactionResult> {
-  const client = getWriteClient(provider, account);
-  const contract = client.contract({
-    address: CONTRACT_ADDRESS,
-    abi: [
-      { name: "set_monitored_url", type: "function", stateMutability: "nonpayable", inputs: [{ name: "new_url", type: "string" }], outputs: [{ type: "bool" }] },
-      { name: "health_check", type: "function", stateMutability: "nonpayable", inputs: [], outputs: [{ type: "bool" }] },
-      { name: "execute_guarded_action", type: "function", stateMutability: "nonpayable", inputs: [{ name: "action_data", type: "string" }], outputs: [{ type: "string" }] },
-      { name: "emergency_unpause", type: "function", stateMutability: "nonpayable", inputs: [], outputs: [{ type: "bool" }] },
-    ],
-  });
-
-  try {
-    const hash = await contract.write[functionName](...args);
-    
-    // Wait for ACCEPTED (consensus reached)
-    const receipt = await client.waitForTransactionReceipt({ hash, status: "ACCEPTED" });
-    
-    return {
-      hash,
-      status: receipt.status,
-      executionResult: receipt.executionResult,
-      receipt,
-    };
-  } catch (error) {
-    console.error(`Contract write ${functionName} failed:`, error);
-    throw error;
-  }
-}
-
-export async function waitForFinalized(hash: string, timeoutMs = 300000): Promise<TransactionResult> {
-  const client = getReadClient();
-  const startTime = Date.now();
-  
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const receipt = await client.getTransactionReceipt({ hash });
-      if (receipt.status === "FINALIZED" || receipt.status === "FINISHED_WITH_RETURN" || receipt.status === "FINISHED_WITH_ERROR") {
-        return {
-          hash,
-          status: receipt.status,
-          executionResult: receipt.executionResult,
-          receipt,
-        };
-      }
-    } catch (error) {
-      // Transaction not found yet
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-  
-  throw new Error("Finalization timeout");
-}
-
-export function formatAddress(address: string, chars = 4): string {
-  if (!address) return "";
-  return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
-}
-
-export function formatTxHash(hash: string, chars = 6): string {
-  if (!hash) return "";
-  return `${hash.slice(0, chars + 2)}...${hash.slice(-chars)}`;
-}
-
-export function formatTimestamp(timestamp: number | bigint): string {
-  const date = new Date(Number(timestamp) * 1000);
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-export function formatRelativeTime(timestamp: number | bigint): string {
-  const date = new Date(Number(timestamp) * 1000);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffSecs < 60) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
-}
-
-export function isVerdictStale(lastCheckTimestamp: number, staleAfterMinutes: number): boolean {
-  if (lastCheckTimestamp === 0) return true;
-  const ageMinutes = (Date.now() - lastCheckTimestamp * 1000) / 60000;
-  return ageMinutes > staleAfterMinutes;
-}
+export function isVerdictStale(timestamp: number, minutes: number, now = Date.now()): boolean { return timestamp === 0 || now - timestamp * 1000 > minutes * 60_000; }

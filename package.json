@@ -6,15 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --deny-warnings",
+    "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "keeper": "tsx scripts/keeper.ts"
+    "keeper": "tsx scripts/keeper.ts",
+    "smoke-read": "tsx scripts/smoke-read.ts",
+    "verify-contract": "tsx scripts/verify-contract.ts",
+    "inspect-receipt": "tsx scripts/inspect-receipt.ts",
+    "check:offline": "tsx scripts/offline-check.ts"
   },
   "dependencies": {
-    "genlayer-js": "^1.1.8",
+    "genlayer-js": "1.1.8",
     "lucide-react": "^1.49.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

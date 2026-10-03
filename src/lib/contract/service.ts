@@ -1,115 +1,37 @@
-import { fetchContractState, writeContract, type ContractState, type TransactionResult } from "../genlayer/client";
-import { CONTRACT_ADDRESS } from "../../config";
-
-export type { ContractState, TransactionResult };
-
-export async function readContractState(): Promise<ContractState | null> {
-  return fetchContractState();
+import { fetchContractState, submitContract, waitForAccepted, type EthereumProvider, type ActionType } from '../genlayer/client';
+import type { Address } from '../../config/env';
+import type { StateResult } from '../genlayer/state';
+import type { ReceiptOutcome } from '../genlayer/receipt';
+import type { Progress } from '../genlayer/poll';
+export interface ActionResult { outcome: ReceiptOutcome; hash: string; before: StateResult; after?: StateResult; evidence: string; isDegraded?: boolean }
+export interface ActionDependencies {
+  read: typeof fetchContractState;
+  submit: typeof submitContract;
+  wait: typeof waitForAccepted;
 }
-
-export interface HealthCheckResult {
-  isDegraded: boolean;
-  transactionResult: TransactionResult;
-  stateBefore: ContractState | null;
-  stateAfter: ContractState | null;
-}
-
-export async function healthCheck(
-  provider: any,
-  account: `0x${string}`
-): Promise<HealthCheckResult> {
-  const stateBefore = await fetchContractState();
-  const result = await writeContract(provider, account, "health_check", []);
-  const stateAfter = await fetchContractState();
-  
-  return {
-    isDegraded: stateAfter?.lastVerdict === "degraded" || false,
-    transactionResult: result,
-    stateBefore,
-    stateAfter,
-  };
-}
-
-export interface GuardedActionResult {
-  success: boolean;
-  message?: string;
-  transactionResult: TransactionResult;
-  stateBefore: ContractState | null;
-  stateAfter: ContractState | null;
-}
-
-export async function executeGuardedAction(
-  provider: any,
-  account: `0x${string}`,
-  actionData: string
-): Promise<GuardedActionResult> {
-  const stateBefore = await fetchContractState();
-  const result = await writeContract(provider, account, "execute_guarded_action", [actionData]);
-  const stateAfter = await fetchContractState();
-  
-  const isUserError = result.status === "FINISHED_WITH_ERROR" && result.executionResult?.error;
-  const isCircuitBreaker = isUserError && result.executionResult?.error?.includes("circuit breaker is active");
-  
-  return {
-    success: result.status === "FINISHED_WITH_RETURN" && !isCircuitBreaker,
-    message: isCircuitBreaker ? "circuit breaker is active" : result.executionResult?.returnValue as string,
-    transactionResult: result,
-    stateBefore,
-    stateAfter,
-  };
-}
-
-export interface SetMonitoredUrlResult {
-  success: boolean;
-  transactionResult: TransactionResult;
-  stateBefore: ContractState | null;
-  stateAfter: ContractState | null;
-}
-
-export async function setMonitoredUrl(
-  provider: any,
-  account: `0x${string}`,
-  newUrl: string
-): Promise<SetMonitoredUrlResult> {
-  const stateBefore = await fetchContractState();
-  const result = await writeContract(provider, account, "set_monitored_url", [newUrl]);
-  const stateAfter = await fetchContractState();
-  
-  return {
-    success: result.status === "FINISHED_WITH_RETURN",
-    transactionResult: result,
-    stateBefore,
-    stateAfter,
-  };
-}
-
-export interface EmergencyUnpauseResult {
-  success: boolean;
-  transactionResult: TransactionResult;
-  stateBefore: ContractState | null;
-  stateAfter: ContractState | null;
-}
-
-export async function emergencyUnpause(
-  provider: any,
-  account: `0x${string}`
-): Promise<EmergencyUnpauseResult> {
-  const stateBefore = await fetchContractState();
-  const result = await writeContract(provider, account, "emergency_unpause", []);
-  const stateAfter = await fetchContractState();
-  
-  return {
-    success: result.status === "FINISHED_WITH_RETURN",
-    transactionResult: result,
-    stateBefore,
-    stateAfter,
-  };
-}
-
-export function getExplorerAddressUrl(): string {
-  return `https://explorer-bradbury.genlayer.com/address/${CONTRACT_ADDRESS}`;
-}
-
-export function getExplorerTransactionUrl(txHash: string): string {
-  return `https://explorer-bradbury.genlayer.com/tx/${txHash}`;
+const defaults: ActionDependencies = { read: fetchContractState, submit: submitContract, wait: waitForAccepted };
+export async function performAction(action: ActionType, args: string[], provider: EthereumProvider, account: Address,
+  events: { onSignature: () => void; onSubmitted: (hash: string) => void; onProgress: Progress },
+  signal?: AbortSignal, deps: ActionDependencies = defaults): Promise<ActionResult> {
+  const before = await deps.read();
+  // Do not risk an unverifiable health check with no baseline snapshot.
+  if (action === 'health_check' && !before.ok) throw new Error(`Cannot establish pre-check state: ${before.error}`);
+  events.onSignature();
+  const hash = await deps.submit(provider, account, action, args);
+  events.onSubmitted(hash);
+  const outcome = await deps.wait(hash, events.onProgress, signal);
+  if (outcome.kind !== 'accepted-return') return { outcome, hash, before, evidence: 'No successful execution has been confirmed.' };
+  const after = await deps.read();
+  let evidence = outcome.returnValue ?? 'Operation accepted by the contract.';
+  let isDegraded: boolean | undefined;
+  if (!after.ok) evidence = `Accepted, but post-transaction state could not be read: ${after.error}`;
+  else if (action === 'health_check') {
+    if (before.ok && after.state.lastCheckTimestamp === before.state.lastCheckTimestamp) evidence = 'State timestamp did not change. A new health check cannot be confirmed from this snapshot.';
+    else evidence = `Observed verdict: ${after.state.lastVerdict}; status: ${after.state.status}; incidents: ${after.state.incidentCount}. Concurrent checks may affect attribution.`;
+    isDegraded = after.state.lastVerdict === 'degraded';
+  } else if (action === 'set_monitored_url') {
+    const verified = after.state.monitoredUrl === args[0] && after.state.lastVerdict === 'not_checked' && after.state.lastCheckedUrl === '';
+    evidence = verified ? 'Requested endpoint observed; verdict reset to not_checked. Pause is not cleared.' : 'Accepted, but the expected URL/reset state was not observed. Refresh and inspect concurrent writes.';
+  } else if (action === 'emergency_unpause') evidence = after.state.status === 'ACTIVE' ? 'ACTIVE observed after recovery.' : 'Accepted, but PAUSED is still observed; refresh and inspect concurrent checks.';
+  return { outcome, hash, before, after, evidence, isDegraded };
 }

@@ -1,212 +1,25 @@
-import { NavLink } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Activity,
-  Shield,
-  RotateCcw,
-  Settings,
-  GitBranch,
-  BookOpen,
-  Info,
-  Monitor,
-  Zap,
-  Copy,
-  LogOut,
-  ExternalLink,
-  Menu,
-  X,
-} from "lucide-react";
-import { useGenLayer } from "../../hooks/useGenLayer";
-import { useState } from "react";
-
-const navigation = [
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/monitor", label: "Monitor", icon: Monitor },
-  { path: "/protected-action", label: "Protected Action", icon: Shield },
-  { path: "/recovery", label: "Recovery", icon: RotateCcw },
-  { path: "/activity", label: "Activity", icon: Activity },
-  { path: "/settings", label: "Settings", icon: Settings },
-];
-
-const docsNavigation = [
-  { path: "/how-it-works", label: "How It Works", icon: Zap },
-  { path: "/architecture", label: "Architecture", icon: GitBranch },
-  { path: "/docs", label: "Documentation", icon: BookOpen },
-  { path: "/about", label: "About", icon: Info },
-];
-
+import { NavLink } from 'react-router-dom';
+import { useCallback, useState } from 'react';
+import { Shield, Menu } from 'lucide-react';
+import { useWallet } from '../../hooks/useWallet';
+import { getExplorerAddressUrl } from '../../config';
+import { Modal } from '../ui/Modal';
+const links = [['/', 'Overview'], ['/dashboard', 'Dashboard'], ['/monitor', 'Monitor'], ['/protected-action', 'Guarded action'], ['/recovery', 'Recovery'], ['/activity', 'Activity'], ['/settings', 'Configuration'], ['/how-it-works', 'How it works'], ['/architecture', 'Architecture'], ['/docs', 'Docs'], ['/about', 'About']] as const;
+function Navigation({ onNavigate }: { onNavigate?: () => void }) {
+  const wallet = useWallet();
+  return <div className="flex flex-col gap-6"><NavLink to="/" onClick={onNavigate} className="flex gap-3 items-center text-xl font-bold"><Shield className="text-sentinel-accent" />Sentinel</NavLink>
+    <nav aria-label="Main navigation" className="flex flex-col gap-1">{links.map(([path, label]) => <NavLink end key={path} to={path} onClick={onNavigate} className={({ isActive }) => `rounded-lg px-3 py-3 ${isActive ? 'bg-sentinel-accent/10 text-sentinel-accent' : 'text-sentinel-textMuted hover:text-sentinel-text'}`}>{label}</NavLink>)}</nav>
+    <section className="space-y-3 border-t border-sentinel-border pt-4">
+      {wallet.address ? <><p className="font-mono break-all text-sm">{wallet.address}</p><p className="text-sm break-all">Balance: {wallet.balance ?? 'unavailable'} GEN</p><a className="link" href={getExplorerAddressUrl(wallet.address)} target="_blank" rel="noreferrer">Wallet in explorer</a><button className="btn-secondary w-full" onClick={wallet.disconnect}>Disconnect locally</button></> : <button className="btn-primary w-full" disabled={wallet.isConnecting} onClick={() => void wallet.connect().catch(() => {})}>Connect wallet</button>}
+      {wallet.isConnected && !wallet.isCorrectNetwork && <><p role="alert" className="text-sentinel-warning">Wrong network</p><button className="btn-secondary w-full" onClick={() => void wallet.switchNetwork().catch(() => {})}>Switch to Bradbury</button></>}
+      {wallet.error && <p role="alert" className="text-sentinel-warning">{wallet.error}</p>}
+    </section>
+  </div>;
+}
 export function Sidebar() {
-  const { wallet, connectWallet, disconnectWallet, switchNetwork } = useGenLayer();
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-
-  const closeMobileMenu = () => setIsMobileOpen(false);
-
-  return (
-    <>
-      {/* Mobile menu button */}
-      <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-sentinel-card border border-sentinel-border text-sentinel-text hover:bg-sentinel-border transition-colors"
-        onClick={() => setIsMobileOpen(true)}
-        aria-label="Open navigation menu"
-        aria-expanded={isMobileOpen}
-      >
-        <Menu className="h-6 w-6" />
-      </button>
-
-      {/* Mobile overlay */}
-      {isMobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/50"
-          onClick={closeMobileMenu}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`fixed left-0 top-0 z-40 h-screen w-64 bg-sentinel-card border-r border-sentinel-border flex flex-col transition-transform duration-300 ease-in-out ${
-          isMobileOpen ? "translate-x-0 lg:translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
-        aria-label="Main navigation"
-      >
-        <div className="flex-1 flex flex-col overflow-y-auto">
-          <div className="p-6 border-b border-sentinel-border flex items-center justify-between">
-            <NavLink to="/" className="flex items-center gap-3" onClick={closeMobileMenu}>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sentinel-accent/15">
-                <Shield className="h-6 w-6 text-sentinel-accent" />
-              </div>
-              <div>
-                <h1 className="font-bold text-lg text-sentinel-text">Sentinel</h1>
-                <p className="text-xs text-sentinel-textMuted">Decentralized Protection</p>
-              </div>
-            </NavLink>
-            {isMobileOpen && (
-              <button
-                onClick={closeMobileMenu}
-                className="lg:hidden p-1 rounded-lg text-sentinel-textMuted hover:text-sentinel-text hover:bg-sentinel-border transition-colors"
-                aria-label="Close navigation menu"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            )}
-          </div>
-
-          <nav className="flex-1 p-4 space-y-1" aria-label="Main navigation">
-            <h3 className="px-3 py-2 text-xs font-semibold text-sentinel-textMuted uppercase tracking-wider">
-              Application
-            </h3>
-            {navigation.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={closeMobileMenu}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? "bg-sentinel-accent/10 text-sentinel-accent border border-sentinel-accent/20"
-                      : "text-sentinel-textMuted hover:text-sentinel-text hover:bg-sentinel-border"
-                  }`
-                }
-              >
-                <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-                {item.label}
-              </NavLink>
-            ))}
-
-            <div className="pt-4 mt-4 border-t border-sentinel-border">
-              <h3 className="px-3 py-2 text-xs font-semibold text-sentinel-textMuted uppercase tracking-wider">
-                Documentation
-              </h3>
-              {docsNavigation.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={closeMobileMenu}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? "bg-sentinel-accent/10 text-sentinel-accent border border-sentinel-accent/20"
-                        : "text-sentinel-textMuted hover:text-sentinel-text hover:bg-sentinel-border"
-                    }`
-                  }
-                >
-                  <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-                  {item.label}
-                </NavLink>
-              ))}
-            </div>
-          </nav>
-        </div>
-
-        <div className="p-4 border-t border-sentinel-border">
-          <div className="space-y-3">
-            {wallet.isConnected ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 p-3 bg-sentinel-bg rounded-lg border border-sentinel-border">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sentinel-accent/15">
-                    <Activity className="h-4 w-4 text-sentinel-accent" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-sentinel-textMuted">Connected</p>
-                    <p className="text-sm font-mono text-sentinel-text truncate">{wallet.address}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => navigator.clipboard.writeText(wallet.address || "")}
-                    className="flex-1 btn-secondary text-xs py-2 flex items-center justify-center gap-1.5"
-                    aria-label="Copy address"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    Copy
-                  </button>
-                  <button
-                    onClick={disconnectWallet}
-                    className="flex-1 btn-ghost text-xs py-2 flex items-center justify-center gap-1.5 text-sentinel-danger hover:text-sentinel-danger"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                    Disconnect
-                  </button>
-                </div>
-                {wallet.chainId && (
-                  <a
-                    href={`https://explorer-bradbury.genlayer.com/address/${wallet.address}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 text-xs text-sentinel-textMuted hover:text-sentinel-accent transition-colors"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    View on Explorer
-                  </a>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={connectWallet}
-                className="w-full btn-primary justify-center"
-                disabled={wallet.isConnecting}
-              >
-                {wallet.isConnecting ? "Connecting..." : "Connect Wallet"}
-              </button>
-            )}
-
-            {wallet.isConnected && wallet.chainId && wallet.chainId !== 4221 && (
-              <button
-                onClick={switchNetwork}
-                className="w-full btn-secondary justify-center"
-              >
-                Switch to Bradbury
-              </button>
-            )}
-
-            {wallet.error && (
-              <p className="text-xs text-sentinel-danger text-center" role="alert">
-                {wallet.error}
-              </p>
-            )}
-          </div>
-        </div>
-      </aside>
-    </>
-  );
+  const [open, setOpen] = useState(false); const close = useCallback(() => setOpen(false), []);
+  return <><button className="lg:hidden fixed top-4 left-4 z-40 btn-secondary min-h-11" aria-label="Open navigation" aria-expanded={open} onClick={() => setOpen(true)}><Menu /></button>
+    <aside className="hidden lg:block fixed inset-y-0 left-0 w-64 overflow-auto bg-sentinel-card border-r border-sentinel-border p-5"><Navigation /></aside>
+    <Modal isOpen={open} onClose={close} title="Navigation"><Navigation onNavigate={close} /></Modal>
+  </>;
 }

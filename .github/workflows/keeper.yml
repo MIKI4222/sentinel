@@ -1,0 +1,24 @@
+name: Keeper (manual opt-in)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sentinel-keeper
+  cancel-in-progress: false
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run keeper -- --once
+        env:
+          KEEPER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
+          VITE_RPC_URL: https://rpc-bradbury.genlayer.com
+          VITE_CHAIN_ID: '4221'

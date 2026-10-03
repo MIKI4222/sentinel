@@ -1,0 +1,19 @@
+{
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/assets(?:/.*)?",
+      "status": 404
+    },
+    {
+      "src": "/mock(?:/.*)?",
+      "status": 404
+    },
+    {
+      "src": "/.*",
+      "dest": "/index.html"
+    }
+  ]
+}

@@ -1,88 +1,51 @@
-# Sentinel — GenLayer Portal Submission
+# Sentinel — Projects submission
 
-## What It Does
+## What it does
 
-Sentinel is a decentralized circuit breaker that protects critical on-chain operations by verifying the health of external dependencies through GenLayer's validator consensus. It solves the trust problem of relying on a single centralized monitoring service by moving the health decision into a GenLayer Intelligent Contract where independent validators fetch live data and reach consensus on the operational state.
+A public read dashboard and wallet-operated circuit-breaker demo on GenLayer Bradbury. Validators independently fetch a status source, classify its body, and reach consensus on a canonical boolean. Accepted degraded checks pause the guarded demo method. The frontend distinguishes execution success, UserError rejection, no consensus, unknown status, acceptance and actual finalization.
 
-## Problem It Solves
+## Problem it solves
 
-Modern protocols depend on external infrastructure (APIs, cloud services, RPC endpoints, identity providers, payment systems, bridges, status endpoints). If a dependency fails, the protocol may continue operating with stale or invalid assumptions. Traditional monitoring introduces another trusted party — a single point of failure.
-
-Sentinel moves the critical health decision into a GenLayer Intelligent Contract where independent validators fetch live data and reach consensus through the Equivalence Principle. Protected operations read directly from the on-chain result — no voluntary compliance needed.
+A single off-chain monitor or oracle can lie about a dependency's state, and callers may voluntarily ignore client warnings. Sentinel demonstrates moving the decision and enforcement into an Intelligent Contract. It still trusts the endpoint's published data and the owner's source selection; it is not a production integration for unrelated protocols.
 
 ## Why GenLayer
 
-GenLayer uniquely enables this architecture through:
-
-1. **`gl.nondet.web.get()`** — Nondeterministic HTTP requests from within the contract, allowing validators to independently fetch live external data
-2. **`gl.eq_principle.strict_eq()`** — Equivalence Principle for consensus on canonical boolean results (operational/degraded) rather than raw response bytes
-3. **Intelligent Contract execution** — Validators independently execute nondeterministic code off-chain, then reach consensus on-chain
-4. **On-chain state** — Consensus decisions become immutable contract storage that protected operations can trustlessly read
-
-This is not an AI oracle. GenLayer enables Intelligent Contracts to evaluate outcomes involving live web data through validator consensus.
+Independent validator web execution plus `strict_eq` rather than one trusted monitoring server. The deployed classifier is JSON parsing, not improved LLM output. Default input is the live GitHub Status API; public mock JSON is explicitly test data.
 
 ## Contract
 
-- **Address:** `0xD934fA3E6EB893f56dd1d53DBeD9fd6f66678000`
-- **Network:** GenLayer Bradbury (Chain ID: 4221)
-- **Explorer:** https://explorer-bradbury.genlayer.com/address/0xD934fA3E6EB893f56dd1d53DBeD9fd6f66678000
-- **Source:** https://github.com/MIKI4222/genlayer-emergency-circuit-breaker/blob/main/contract.py
+- EmergencyCircuitBreaker: `0xD934fA3E6EB893f56dd1d53DBeD9fd6f66678000`
+- Bradbury, chain ID 4221
+- Explorer: https://explorer-bradbury.genlayer.com/address/0xD934fA3E6EB893f56dd1d53DBeD9fd6f66678000
+- Source: https://github.com/MIKI4222/genlayer-emergency-circuit-breaker/blob/main/contract.py
+- Frontend source: https://github.com/MIKI4222/sentinel
+- Contract is fixed; this work changes frontend/scripts/docs only.
 
-## How to Use
+## How to use
 
-### As a User
-1. Connect wallet (MetaMask) on GenLayer Bradbury
-2. View live contract status on Dashboard
-3. Run Health Check to trigger consensus verification
-4. Execute Protected Actions when system is ACTIVE
-5. Use Recovery page to unpause after incidents
+**User:** open Dashboard without a wallet, inspect evidence, connect and run a health check, then test a guarded action. A paused action is expected to reject.
 
-### As an Operator (with Keeper)
-```bash
-KEEPER_PRIVATE_KEY=0x... KEEPER_INTERVAL_MS=300000 npm run keeper
-```
-Or deploy the GitHub Actions workflow in `.github/workflows/keeper.yml`
+**Operator:** set public Vercel environment, ensure endpoint access from validators, fund a dedicated keeper account, put its key in an environment/Actions secret, opt in to checks. For recovery, use the owner's wallet to check the current endpoint and unpause after operational evidence.
 
-### As an Integrator
-```typescript
-const status = await sentinel.get_status();
-if (status === "PAUSED") {
-  throw new Error("Circuit breaker active - operation blocked");
-}
-// Proceed with critical operation
-```
+**Integrator:** read status and verdict through SDK `readContract`; see INTEGRATION.md. A client read is not atomic enforcement. This deployed guarded method is only a demo counter.
 
-## Live Demo
+## Live demo
 
-- **Frontend:** [Deployed URL] (to be filled after deployment)
-- **Contract:** https://explorer-bradbury.genlayer.com/address/0xD934fA3E6EB893f56dd1d53DBeD9fd6f66678000
-- **Repository:** https://github.com/MIKI4222/genlayer-emergency-circuit-breaker
+https://sentinel-lake-omega.vercel.app/ — supplied by the project owner. Public availability and the corrected deployment are not verified in this offline run. Confirm direct `/dashboard` navigation and `/mock/*.json` access. Disable Production Deployment Protection if Vercel redirects to login.
 
-## Test Evidence
+## Test evidence
 
-See [TEST_PLAN.md](TEST_PLAN.md) for complete test scenarios. Key scenarios validated:
+Owner Windows checks passed: strict typecheck, zero-warning lint, 86 Vitest tests in 10 files, and production build (with a 529.01 kB SDK chunk warning). smoke-read returned all seven views and verify-contract printed MATCH. One real health_check was accepted; receipt parser returned accepted-return. Hash: 0xfe0e80d00e81b7f004fa61532963b4dd013ec7df4b47ccb7b2eb303f500b2656. Finalization and paused-action rejection have not been observed. See TEST_PLAN.md and IMPLEMENTATION_REPORT.md for evidence and remaining gaps. Portal compliance is a submission goal, not a guarantee of portal approval.
 
-- ✅ Connect Wallet on Bradbury
-- ✅ Read contract state (status, verdict, incident count)
-- ✅ Health Check on healthy endpoint → Operational verdict
-- ✅ Health Check on degraded endpoint → Degraded verdict, PAUSED
-- ✅ Protected Action blocked when PAUSED
-- ✅ Recovery requires fresh operational verdict + owner auth
-- ✅ Full cycle: ACTIVE → PAUSED → ACTIVE
-- ✅ Non-owner cannot change URL or recover
-- ✅ Recovery fails without operational verdict or URL mismatch
+## Known limitations
 
-## Known Limitations
+1. GitHub Statuspage `minor` is not a recognized indicator. A standard response containing only this status is classified as degraded through fail-closed.
+2. Empty bodies, invalid JSON and unknown formats classify as degraded. The response HTTP status code is not checked.
+3. `health_check` uses `gl.eq_principle.strict_eq` on the boolean result. Failure to reach consensus does not apply the check's state changes and does NOT enable the pause. Other concurrent transactions can still change state.
+4. Anyone may call `health_check`, with no contract rate limit.
+5. Neither `execute_guarded_action` nor `emergency_unpause` checks verdict age. Useful live protection requires regular checks. ACTIVE can also be the initial never-checked state.
+6. The owner can replace the monitored URL with a controlled endpoint, obtain an operational verdict and unpause. Decentralized validation does not remove this source-selection trust.
+7. `incident_count` is cumulative, not consecutive; operational checks do not reset it. The constructor fixes `pause_threshold=1` and `fail_closed=true`; neither is configurable through the deployed public interface.
+8. The guarded operation is a demonstration counter and returned string, not a real protocol action. This deployment does not protect an unrelated external transaction automatically.
 
-1. **Owner-controlled URL** — Centralized control point; production should use multisig/governance
-2. **Demo guarded operation** — `execute_guarded_action()` is a placeholder; real integration replaces this
-3. **Single endpoint** — Current contract monitors one URL; multi-endpoint requires contract changes
-4. **Bradbury testnet only** — Not deployed on mainnet
-5. **No built-in alerting** — External monitoring needed for pause notifications
-6. **Minor indicator = degraded** — GitHub Statuspage "minor" not in operational list, triggers fail-closed
-7. **Empty/invalid response = degraded** — Fail-closed by design
-8. **No HTTP status check** — Contract doesn't verify HTTP response codes
-9. **Consensus failure = no state change** — Validators must agree exactly
-10. **Health check rate unlimited** — No on-chain rate limiting
-11. **Verdict age not checked on-chain** — Staleness is UI hint only
-12. **Owner can change URL to controlled endpoint** — Can manipulate verdict
+UI freshness, cooldown and HTTPS input validation are not enforced by the contract. Source selection remains owner-controlled. Regular checks are necessary; no-consensus is not fail-safe pausing.
