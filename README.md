@@ -118,3 +118,10 @@ Official SDK reference: https://docs.genlayer.com/api-references/genlayer-js (ma
 ## Release verification — October 3, 2026
 
 The project owner supplied successful Windows typecheck, zero-warning lint, 86 passing Vitest tests, a successful production build, seven-view smoke-read, and deployed-source MATCH. A real health_check receipt was ACCEPTED / FINISHED_WITH_RETURN and parsed as accepted-return. Actual hash: 0xfe0e80d00e81b7f004fa61532963b4dd013ec7df4b47ccb7b2eb303f500b2656. FINALIZED and a real paused-action rejection are not yet confirmed. The SDK chunk is 529.01 kB and still triggers the size warning. See IMPLEMENTATION_REPORT.md for provenance and DEPLOYMENT.md for GitHub/Vercel publication.
+
+## Intelligent Contract
+
+The deployed contract source is in [contracts/contract.py](contracts/contract.py).
+Provenance and verification steps: [contracts/README.md](contracts/README.md).
+
+Live app: https://sentinel-lake-omega.vercel.app/
